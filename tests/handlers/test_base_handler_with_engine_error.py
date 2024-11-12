@@ -8,16 +8,17 @@
 # http://www.opensource.org/licenses/mit-license
 # Copyright (c) 2011 globo.com thumbor@googlegroups.com
 
+from unittest.mock import patch
+
 import pytest
-from mock import patch
 from preggy import expect
 from tornado.testing import gen_test
 
+from tests.handlers.test_base_handler import BaseImagingTestCase
 from thumbor.config import Config
 from thumbor.context import Context, ServerParameters
 from thumbor.engines.pil import Engine
 from thumbor.importer import Importer
-from tests.handlers.test_base_handler import BaseImagingTestCase
 
 # pylint: disable=broad-except,abstract-method,attribute-defined-outside-init,line-too-long,too-many-public-methods
 # pylint: disable=too-many-lines
@@ -33,7 +34,9 @@ class EngineLoadException(BaseImagingTestCase):
 
         importer = Importer(cfg)
         importer.import_modules()
-        server = ServerParameters(8889, "localhost", "thumbor.conf", None, "info", None)
+        server = ServerParameters(
+            8889, "localhost", "thumbor.conf", None, "info", None
+        )
         server.security_key = "ACME-SEC"
         return Context(server, cfg, importer)
 
@@ -67,6 +70,8 @@ class EngineLoadException(BaseImagingTestCase):
 
     @patch.object(Engine, "read", side_effect=Exception)
     @gen_test
-    async def test_should_fail_with_500_upon_engine_read_exception(self, _):  # NOQA
+    async def test_should_fail_with_500_upon_engine_read_exception(
+        self, _
+    ):  # NOQA
         response = await self.async_fetch("/unsafe/fit-in/134x134/940x2.png")
         expect(response.code).to_equal(500)

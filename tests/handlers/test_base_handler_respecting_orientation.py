@@ -13,11 +13,11 @@ from shutil import which
 from preggy import expect
 from tornado.testing import gen_test
 
+from tests.handlers.test_base_handler import BaseImagingTestCase
 from thumbor.config import Config
 from thumbor.context import Context, ServerParameters
 from thumbor.engines.pil import Engine
 from thumbor.importer import Importer
-from tests.handlers.test_base_handler import BaseImagingTestCase
 
 # pylint: disable=broad-except,abstract-method,attribute-defined-outside-init,line-too-long,too-many-public-methods
 # pylint: disable=too-many-lines
@@ -34,7 +34,9 @@ class ImageOperationsWithRespectOrientation(BaseImagingTestCase):
 
         importer = Importer(cfg)
         importer.import_modules()
-        server = ServerParameters(8889, "localhost", "thumbor.conf", None, "info", None)
+        server = ServerParameters(
+            8889, "localhost", "thumbor.conf", None, "info", None
+        )
         server.security_key = "ACME-SEC"
         self.context = Context(server, cfg, importer)
         self.context.server.gifsicle_path = which("gifsicle")

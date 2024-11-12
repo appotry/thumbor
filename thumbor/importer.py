@@ -84,7 +84,9 @@ class Importer:  # pylint: disable=too-many-instance-attributes
         self.import_item("STORAGE", "Storage")
         self.import_item("METRICS", "Metrics")
         self.import_item("DETECTORS", "Detector", is_multiple=True)
-        self.import_item("FILTERS", "Filter", is_multiple=True, ignore_errors=True)
+        self.import_item(
+            "FILTERS", "Filter", is_multiple=True, ignore_errors=True
+        )
         self.import_item("HANDLER_LISTS", is_multiple=True)
         self.import_item("OPTIMIZERS", "Optimizer", is_multiple=True)
         self.import_item("URL_SIGNER", "UrlSigner")
@@ -110,12 +112,12 @@ class Importer:  # pylint: disable=too-many-instance-attributes
 
     @staticmethod
     def deprecated_monkey_patch_tornado_return_future():
-        import tornado.concurrent
+        import tornado.concurrent  # pylint: disable=import-outside-toplevel
 
         if not hasattr(tornado.concurrent, "return_future"):
             setattr(tornado.concurrent, "return_future", noop)
 
-    def import_item(
+    def import_item(  # pylint: disable=too-many-positional-arguments
         self,
         config_key=None,
         class_name=None,
@@ -139,12 +141,12 @@ class Importer:  # pylint: disable=too-many-instance-attributes
             )
         else:
             if class_name is not None:
-                module = self.import_class("%s.%s" % (conf_value, class_name))
+                module = self.import_class(f"{conf_value}.{class_name}")
             else:
                 module = self.import_class(conf_value, get_module=True)
             setattr(self, config_key.lower(), module)
 
-    def load_multiple_item(
+    def load_multiple_item(  # pylint: disable=too-many-positional-arguments
         self,
         config_key,
         conf_value,
@@ -163,12 +165,14 @@ class Importer:  # pylint: disable=too-many-instance-attributes
                             )
                         else:
                             module = self.import_class(
-                                "%s.%s" % (module_name, class_name),
+                                f"{module_name}.{class_name}",
                                 validate_fn=validate_fn,
                             )
                     else:
                         module = self.import_class(
-                            module_name, get_module=True, validate_fn=validate_fn
+                            module_name,
+                            get_module=True,
+                            validate_fn=validate_fn,
                         )
                     modules.append(module)
                 except ImportError as error:

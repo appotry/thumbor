@@ -24,14 +24,14 @@ STORAGE_PATH = abspath(join(dirname(__file__), "../fixtures/images/"))
 
 class CompatibilityStorageTestCase(TestCase):
     def get_image_path(self, name):
-        return "./tests/fixtures/images/{0}".format(name)
+        return f"./tests/fixtures/images/{name}"
 
     def get_image_bytes(self, name):
         with open(self.get_image_path(name), "rb") as img:
             return img.read()
 
     def get_image_url(self, name):
-        return "s.glbimg.com/some/{0}".format(name)
+        return f"s.glbimg.com/some/{name}"
 
     def get_context(self):
         config = Config(
@@ -41,7 +41,9 @@ class CompatibilityStorageTestCase(TestCase):
         )
         importer = Importer(config)
         importer.import_modules()
-        server = ServerParameters(8889, "localhost", "thumbor.conf", None, "info", None)
+        server = ServerParameters(
+            8889, "localhost", "thumbor.conf", None, "info", None
+        )
         server.security_key = "ACME-SEC"
         return Context(server, config=config, importer=importer)
 
@@ -53,7 +55,9 @@ class CompatibilityStorageTestCase(TestCase):
         )
         importer = Importer(config)
         importer.import_modules()
-        server = ServerParameters(8889, "localhost", "thumbor.conf", None, "info", None)
+        server = ServerParameters(
+            8889, "localhost", "thumbor.conf", None, "info", None
+        )
         server.security_key = "ACME-SEC"
         ctx = Context(server, config=config, importer=importer)
         storage = Storage(ctx)

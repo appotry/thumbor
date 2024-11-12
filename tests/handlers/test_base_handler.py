@@ -8,34 +8,40 @@
 # http://www.opensource.org/licenses/mit-license
 # Copyright (c) 2011 globo.com thumbor@googlegroups.com
 
+import logging
 import shutil
 import tempfile
 from os.path import abspath, dirname, join
 from shutil import which
+from unittest import mock
 from urllib.parse import quote
 
-from preggy import expect
+import pytest
 import tornado.web
+from preggy import expect
 from tornado.testing import gen_test
+
+import thumbor.engines.pil
+from tests.base import TestCase, skip_unless_avif, skip_unless_heif
 from tests.fixtures.images import (
     alabama1,
     default_image,
     invalid_quantization,
     space_image,
 )
-
-from tests.base import TestCase
-from thumbor.handlers import BaseHandler
 from thumbor.config import Config
 from thumbor.context import Context, ServerParameters
 from thumbor.engines.pil import Engine
+from thumbor.handlers import BaseHandler
 from thumbor.importer import Importer
-
-# pylint: disable=broad-except,abstract-method,attribute-defined-outside-init,line-too-long,too-many-public-methods
-# pylint: disable=too-many-lines
 
 JPEGTRAN_AVAILABLE = which("jpegtran") is not None
 EXIFTOOL_AVAILABLE = which("exiftool") is not None
+
+
+@pytest.fixture(scope="function")
+def unittest_caplog(request, caplog):
+    request.function.__self__.caplog = caplog
 
 
 class ErrorHandler(BaseHandler):
@@ -52,7 +58,9 @@ class BaseHandlerTestApp(tornado.web.Application):
 class BaseImagingTestCase(TestCase):
     def setUp(self):
         self.root_path = tempfile.mkdtemp()
-        self.loader_path = abspath(join(dirname(__file__), "../fixtures/images/"))
+        self.loader_path = abspath(
+            join(dirname(__file__), "../fixtures/images/")
+        )
         self.base_uri = "/image"
         super().setUp()
 
@@ -61,6 +69,8 @@ class BaseImagingTestCase(TestCase):
 
 
 class ImagingOperationsTestCase(BaseImagingTestCase):
+    caplog = None  # can be added by unittest_caplog fixture
+
     def get_context(self):
         cfg = Config(SECURITY_KEY="ACME-SEC")
         cfg.LOADER = "thumbor.loaders.file_loader"
@@ -72,7 +82,9 @@ class ImagingOperationsTestCase(BaseImagingTestCase):
 
         importer = Importer(cfg)
         importer.import_modules()
-        server = ServerParameters(8889, "localhost", "thumbor.conf", None, "info", None)
+        server = ServerParameters(
+            8889, "localhost", "thumbor.conf", None, "info", None
+        )
         server.security_key = "ACME-SEC"
         return Context(server, cfg, importer)
 
@@ -95,10 +107,10 @@ class ImagingOperationsTestCase(BaseImagingTestCase):
 
     @gen_test
     async def test_can_get_unicode_image(self):
-        response = await self.async_fetch(
-            u"/unsafe/%s"
-            % quote(u"15967251_212831_19242645_АгатавЗоопарке.jpg".encode("utf-8"))
+        enc_url = quote(
+            "15967251_212831_19242645_АгатавЗоопарке.jpg".encode("utf-8")
         )
+        response = await self.async_fetch(f"/unsafe/{enc_url}")
         expect(response.code).to_equal(200)
         expect(response.body).to_be_similar_to(default_image())
 
@@ -135,7 +147,7 @@ class ImagingOperationsTestCase(BaseImagingTestCase):
 
     @gen_test
     async def test_image_with_spaces_on_url(self):
-        response = await self.async_fetch(u"/unsafe/image%20space.jpg")
+        response = await self.async_fetch("/unsafe/image%20space.jpg")
         expect(response.code).to_equal(200)
         expect(response.body).to_be_similar_to(space_image())
 
@@ -184,7 +196,9 @@ class ImagingOperationsTestCase(BaseImagingTestCase):
 
     @gen_test
     async def test_can_read_cmyk_jpeg_as_png(self):
-        response = await self.async_fetch("/unsafe/filters:format(png)/cmyk.jpg")
+        response = await self.async_fetch(
+            "/unsafe/filters:format(png)/cmyk.jpg"
+        )
         expect(response.code).to_equal(200)
         expect(response.body).to_be_png()
 
@@ -209,6 +223,48 @@ class ImagingOperationsTestCase(BaseImagingTestCase):
         expect(engine.size).to_equal((2000, 2600))
 
     @gen_test
+    async def test_svg_with_px_units_and_convert_to_png_with_size(self):
+        width, height = 400, 500
+        self.context.request = mock.Mock(width=width, height=height)
+        response = await self.async_fetch(
+            f"/unsafe/{width}x{height}/Commons-logo.svg"
+        )
+        expect(response.code).to_equal(200)
+        expect(response.body).to_be_png()
+
+        engine = Engine(self.context)
+        engine.load(response.body, ".png")
+        expect(engine.size).to_equal((width, height))
+
+    @gen_test
+    async def test_svg_with_inch_units_and_convert_to_png_with_size(self):
+        width, height = 400, 500
+        self.context.request = mock.Mock(width=width, height=height)
+        response = await self.async_fetch(
+            f"/unsafe/{width}x{height}/Commons-logo-inches.svg"
+        )
+        expect(response.code).to_equal(200)
+        expect(response.body).to_be_png()
+
+        engine = Engine(self.context)
+        engine.load(response.body, ".png")
+        expect(engine.size).to_equal((width, height))
+
+    @gen_test
+    async def test_svg_with_px_units_and_convert_to_png_with_width(self):
+        width = 300
+        self.context.request = mock.Mock(width=width)
+        response = await self.async_fetch(
+            f"/unsafe/fit-in/{width}x/Commons-logo.svg"
+        )
+        expect(response.code).to_equal(200)
+        expect(response.body).to_be_png()
+
+        engine = Engine(self.context)
+        engine.load(response.body, ".png")
+        expect(engine.size).to_equal((width, 403))
+
+    @gen_test
     async def test_can_read_8bit_tiff_as_png(self):
         response = await self.async_fetch("/unsafe/gradient_8bit.tif")
         expect(response.code).to_equal(200)
@@ -216,12 +272,148 @@ class ImagingOperationsTestCase(BaseImagingTestCase):
 
     @gen_test
     async def test_can_read_16bit_lsb_tiff_as_png(self):
-        response = await self.async_fetch("/unsafe/gradient_lsb_16bperchannel.tif")
+        response = await self.async_fetch(
+            "/unsafe/gradient_lsb_16bperchannel.tif"
+        )
         expect(response.code).to_equal(200)
         expect(response.body).to_be_png()
 
     @gen_test
     async def test_can_read_16bit_msb_tiff_as_png(self):
-        response = await self.async_fetch("/unsafe/gradient_msb_16bperchannel.tif")
+        response = await self.async_fetch(
+            "/unsafe/gradient_msb_16bperchannel.tif"
+        )
         expect(response.code).to_equal(200)
         expect(response.body).to_be_png()
+
+    @skip_unless_avif
+    @gen_test
+    async def test_avif_format(self):
+        response = await self.async_fetch(
+            "/unsafe/filters:format(avif)/image.jpg"
+        )
+        expect(response.code).to_equal(200)
+        expect(response.body).to_be_avif()
+
+    @gen_test
+    @pytest.mark.usefixtures("unittest_caplog")
+    async def test_avif_unavailable_format_jpg(self):
+        self.caplog.set_level(logging.WARNING)
+        with mock.patch.object(thumbor.engines.pil, "HAVE_AVIF", False):
+            response = await self.async_fetch(
+                "/unsafe/filters:format(avif)/image.jpg"
+            )
+            expect(response.code).to_equal(200)
+            expect(response.body).to_be_jpeg()
+            assert self.caplog.record_tuples == [
+                (
+                    "thumbor",
+                    logging.WARNING,
+                    "[PILEngine] AVIF encoding unavailable, defaulting to .jpg",
+                )
+            ]
+
+    @gen_test
+    @pytest.mark.usefixtures("unittest_caplog")
+    async def test_avif_unavailable_format_png(self):
+        self.caplog.set_level(logging.WARNING)
+        with mock.patch.object(thumbor.engines.pil, "HAVE_AVIF", False):
+            response = await self.async_fetch(
+                "/unsafe/filters:format(avif)/1x1.png"
+            )
+            expect(response.code).to_equal(200)
+            expect(response.body).to_be_png()
+            assert self.caplog.record_tuples == [
+                (
+                    "thumbor",
+                    logging.WARNING,
+                    "[PILEngine] AVIF encoding unavailable, defaulting to .png",
+                )
+            ]
+
+    @skip_unless_avif
+    @gen_test
+    async def test_avif_quality_setting(self):
+        self.context.config.QUALITY = 80
+        self.context.config.AVIF_QUALITY = 50
+        with mock.patch.object(
+            Engine,
+            "read",
+            autospec=True,
+            side_effect=Engine.read,
+        ) as mock_read:
+            response = await self.async_fetch(
+                "/unsafe/filters:format(avif)/image.jpg"
+            )
+            expect(response.code).to_equal(200)
+            expect(response.body).to_be_avif()
+            mock_read.assert_called_with(mock.ANY, ".avif", 50)
+
+    @gen_test
+    async def test_can_read_heif(self):
+        response = await self.async_fetch("/unsafe/image.heic")
+        expect(response.code).to_equal(200)
+        expect(response.body).to_be_heif()
+
+    @skip_unless_heif
+    @gen_test
+    async def test_heif_format(self):
+        response = await self.async_fetch(
+            "/unsafe/filters:format(heic)/image.jpg"
+        )
+        expect(response.code).to_equal(200)
+        expect(response.body).to_be_heif()
+
+    @skip_unless_heif
+    @gen_test
+    async def test_heif_quality_setting(self):
+        self.context.config.QUALITY = 80
+        self.context.config.HEIF_QUALITY = 50
+        with mock.patch.object(
+            Engine,
+            "read",
+            autospec=True,
+            side_effect=Engine.read,
+        ) as mock_read:
+            response = await self.async_fetch(
+                "/unsafe/filters:format(heif)/image.jpg"
+            )
+            expect(response.code).to_equal(200)
+            expect(response.body).to_be_heif()
+            mock_read.assert_called_with(mock.ANY, ".heif", 50)
+
+    @gen_test
+    @pytest.mark.usefixtures("unittest_caplog")
+    async def test_heif_unavailable_format_jpg(self):
+        self.caplog.set_level(logging.WARNING)
+        with mock.patch.object(thumbor.engines.pil, "HAVE_HEIF", False):
+            response = await self.async_fetch(
+                "/unsafe/filters:format(heif)/image.jpg"
+            )
+            expect(response.code).to_equal(200)
+            expect(response.body).to_be_jpeg()
+            assert self.caplog.record_tuples == [
+                (
+                    "thumbor",
+                    logging.WARNING,
+                    "[PILEngine] HEIF encoding unavailable, defaulting to .jpg",
+                )
+            ]
+
+    @gen_test
+    @pytest.mark.usefixtures("unittest_caplog")
+    async def test_heif_unavailable_format_png(self):
+        self.caplog.set_level(logging.WARNING)
+        with mock.patch.object(thumbor.engines.pil, "HAVE_HEIF", False):
+            response = await self.async_fetch(
+                "/unsafe/filters:format(heif)/1x1.png"
+            )
+            expect(response.code).to_equal(200)
+            expect(response.body).to_be_png()
+            assert self.caplog.record_tuples == [
+                (
+                    "thumbor",
+                    logging.WARNING,
+                    "[PILEngine] HEIF encoding unavailable, defaulting to .png",
+                )
+            ]

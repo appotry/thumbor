@@ -8,9 +8,11 @@
 # http://www.opensource.org/licenses/mit-license
 # Copyright (c) 2011 globo.com thumbor@googlegroups.com
 
-from os import fstat
+# pylint: disable=all
+
 from datetime import datetime
-from os.path import join, exists, abspath
+from os import fstat
+from os.path import abspath, exists, join
 
 from six.moves.urllib.parse import unquote
 from tornado.concurrent import return_future
@@ -20,7 +22,9 @@ from thumbor.loaders import LoaderResult
 
 @return_future
 def load(context, path, callback):
-    file_path = join(context.config.FILE_LOADER_ROOT_PATH.rstrip("/"), path.lstrip("/"))
+    file_path = join(
+        context.config.FILE_LOADER_ROOT_PATH.rstrip("/"), path.lstrip("/")
+    )
     file_path = abspath(file_path)
     inside_root_path = file_path.startswith(
         abspath(context.config.FILE_LOADER_ROOT_PATH)
@@ -47,7 +51,8 @@ def load(context, path, callback):
             result.buffer = f.read()
 
             result.metadata.update(
-                size=stats.st_size, updated_at=datetime.utcfromtimestamp(stats.st_mtime)
+                size=stats.st_size,
+                updated_at=datetime.utcfromtimestamp(stats.st_mtime),
             )
     else:
         result.error = LoaderResult.ERROR_NOT_FOUND

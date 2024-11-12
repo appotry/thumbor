@@ -8,17 +8,20 @@
 # http://www.opensource.org/licenses/mit-license
 # Copyright (c) 2011 globo.com thumbor@googlegroups.com
 
-import os
-from shutil import move
-from json import dumps, loads
-from datetime import datetime
-from os.path import exists, dirname, getmtime, splitext
+# pylint: disable-all
+
 import hashlib
+import os
+from datetime import datetime
+from json import dumps, loads
+from os.path import dirname, exists, getmtime, splitext
+from shutil import move
 from uuid import uuid4
+
+from tornado.concurrent import return_future
 
 import thumbor.storages as storages
 from thumbor.utils import logger
-from tornado.concurrent import return_future
 
 
 class Storage(storages.BaseStorage):
@@ -27,14 +30,18 @@ class Storage(storages.BaseStorage):
         temp_abspath = "%s.%s" % (file_abspath, str(uuid4()).replace("-", ""))
         file_dir_abspath = dirname(file_abspath)
 
-        logger.debug("creating tempfile for %s in %s..." % (path, temp_abspath))
+        logger.debug(
+            "creating tempfile for %s in %s..." % (path, temp_abspath)
+        )
 
         self.ensure_dir(file_dir_abspath)
 
         with open(temp_abspath, "wb") as _file:
             _file.write(bytes)
 
-        logger.debug("moving tempfile %s to %s..." % (temp_abspath, file_abspath))
+        logger.debug(
+            "moving tempfile %s to %s..." % (temp_abspath, file_abspath)
+        )
         move(temp_abspath, file_abspath)
 
         return path
@@ -144,4 +151,7 @@ class Storage(storages.BaseStorage):
         if self.context.config.STORAGE_EXPIRATION_SECONDS is None:
             return False
         timediff = datetime.now() - datetime.fromtimestamp(getmtime(path))
-        return timediff.total_seconds() > self.context.config.STORAGE_EXPIRATION_SECONDS
+        return (
+            timediff.total_seconds()
+            > self.context.config.STORAGE_EXPIRATION_SECONDS
+        )

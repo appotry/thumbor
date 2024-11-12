@@ -10,21 +10,16 @@
 
 import os
 from os.path import dirname
+from unittest.mock import Mock
 
-from mock import Mock
 from preggy import expect
 from tornado.testing import gen_test
 
-from tests.fixtures.images import (
-    not_so_animated_image,
-)
+from tests.fixtures.images import not_so_animated_image
+from tests.handlers.test_base_handler import BaseImagingTestCase
 from thumbor.config import Config
 from thumbor.context import Context, ServerParameters
 from thumbor.importer import Importer
-from tests.handlers.test_base_handler import BaseImagingTestCase
-
-# pylint: disable=broad-except,abstract-method,attribute-defined-outside-init,line-too-long,too-many-public-methods
-# pylint: disable=too-many-lines
 
 
 class ImageOperationsWithGifWithoutGifsicle(BaseImagingTestCase):
@@ -40,7 +35,9 @@ class ImageOperationsWithGifWithoutGifsicle(BaseImagingTestCase):
 
         importer = Importer(cfg)
         importer.import_modules()
-        server = ServerParameters(8889, "localhost", "thumbor.conf", None, "info", None)
+        server = ServerParameters(
+            8889, "localhost", "thumbor.conf", None, "info", None
+        )
         server.security_key = "ACME-SEC"
         ctx = Context(server, cfg, importer)
 
@@ -57,7 +54,9 @@ class ImageOperationsWithGifWithoutGifsicle(BaseImagingTestCase):
         expect(response.body).to_be_similar_to(not_so_animated_image())
 
 
-class ImageOperationsWithGifWithoutGifsicleOnResultStorage(BaseImagingTestCase):
+class ImageOperationsWithGifWithoutGifsicleOnResultStorage(
+    BaseImagingTestCase
+):
     def get_context(self):
         cfg = Config(SECURITY_KEY="ACME-SEC")
         cfg.LOADER = "thumbor.loaders.file_loader"
@@ -71,7 +70,9 @@ class ImageOperationsWithGifWithoutGifsicleOnResultStorage(BaseImagingTestCase):
 
         importer = Importer(cfg)
         importer.import_modules()
-        server = ServerParameters(8889, "localhost", "thumbor.conf", None, "info", None)
+        server = ServerParameters(
+            8889, "localhost", "thumbor.conf", None, "info", None
+        )
         server.security_key = "ACME-SEC"
         ctx = Context(server, cfg, importer)
 

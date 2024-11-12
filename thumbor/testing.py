@@ -12,9 +12,9 @@ import mimetypes
 import random
 from io import BytesIO
 from os.path import dirname, join, realpath
+from unittest import mock
 from urllib.parse import urlencode
 
-import mock
 from PIL import Image
 from ssim import compute_ssim
 from tornado.testing import AsyncHTTPTestCase
@@ -28,16 +28,14 @@ from thumbor.transformer import Transformer
 
 
 def get_ssim(actual, expected):
-    if actual.size[0] != expected.size[0] or actual.size[1] != expected.size[1]:
+    if (
+        actual.size[0] != expected.size[0]
+        or actual.size[1] != expected.size[1]
+    ):
         raise RuntimeError(
-            "Can't calculate SSIM for images of different sizes "
-            "(one is %dx%d, the other %dx%d)."
-            % (
-                actual.size[0],
-                actual.size[1],
-                expected.size[0],
-                expected.size[1],
-            )
+            "Can't calculate SSIM for images of different sizes ("
+            f"one is {actual.size[0]}x{actual.size[1]}, "
+            f"the other {expected.size[0]}x{expected.size[1]}).",
         )
 
     return compute_ssim(actual, expected)
@@ -49,10 +47,12 @@ def encode_multipart_formdata(fields, files):
     lines = []
     for key, value in fields.items():
         lines.append(b"--" + boundary)
-        lines.append(b'Content-Disposition: form-data; name="%s"' % key.encode())
+        lines.append(
+            b'Content-Disposition: form-data; name="%s"' % key.encode()
+        )
         lines.append(b"")
         lines.append(value)
-    for (key, filename, value) in files:
+    for key, filename, value in files:
         lines.append(b"--" + boundary)
         lines.append(
             b'Content-Disposition: form-data; name="%s"; filename="%s"'
@@ -111,7 +111,9 @@ class TestCase(AsyncHTTPTestCase):
 
     def get_context(self):
         self.importer.import_modules()
-        return Context(self.server, self.config, self.importer, self.request_handler)
+        return Context(
+            self.server, self.config, self.importer, self.request_handler
+        )
 
     async def async_fetch(self, path, method="GET", body=None, headers=None):
         return await self.http_client.fetch(
@@ -212,7 +214,7 @@ class FilterTestCase(TestCase):
         image = Image.open(self.get_fixture_path(name))
         return image.convert(mode)
 
-    async def get_filtered(
+    async def get_filtered(  # pylint: disable=too-many-positional-arguments
         self,
         source_image,
         filter_name,
@@ -249,16 +251,15 @@ class FilterTestCase(TestCase):
 
     def debug(self, image):  # pylint: disable=arguments-differ
         image = Image.fromarray(image)
-        path = "/tmp/debug_image_%s.jpg" % random.randint(1, 10000)
+        path = f"/tmp/debug_image_{random.randint(1, 10000)}.jpg"
         image.save(path, "JPEG")
-        print("The debug image was in %s." % path)
+        print(f"The debug image was in {path}.")
 
     @staticmethod
     def debug_size(image):
         loaded = Image.fromarray(image)
         print(
-            "Image dimensions are %dx%d (shape is %s)"
-            % (loaded.size[0], loaded.size[1], image.shape)
+            f"Image dimensions are {loaded.size[0]}x{loaded.size[1]} (shape is {image.shape})"
         )
 
 
